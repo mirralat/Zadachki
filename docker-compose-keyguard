@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    env_file:
+      - "keyguard/.env"
+    ports:
+      - "5432:5432"
+
+  app:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    env_file:
+      - "keyguard/.env"
+    depends_on:
+      - db
+
+  redis:
+    image: "redis:alpine"
+    env_file:
+      - "keyguard/.env"
+
+  celery:
+    restart: always
+    build: .
+    command: celery -A keyguard worker -l info
+    volumes:
+      - .:/code
+    depends_on:
+      - redis
+    env_file:
+      - "keyguard/.env"
+
+  celery_beat:
+    build: .
+    command: celery -A keyguard beat -l info
+    volumes:
+      - .:/code
+    depends_on:
+      - redis
+    env_file:
+      - "keyguard/.env" 
+
+  centrifugo:
+    image: centrifugo/centrifugo:v2.7.2
+    command: centrifugo -c config.json --port=8086 --admin
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./config.json:/centrifugo/config.json
+
+
+
+networks:
+  default:
+    external:
+      name: my_network
